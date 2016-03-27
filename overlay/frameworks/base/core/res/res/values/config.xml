@@ -105,10 +105,6 @@
          config to 7. -->
     <integer name="config_deviceHardwareWakeKeys">64</integer>
 
-    <!-- Performance profiles -->
-    <string name="config_perf_profile_prop">sys.perf.profile</string>
-    <string name="config_perf_profile_default_entry">1</string>
-
     <!-- SD card is hot-pluggable on this device -->
     <bool name="config_batterySdCardAccessibility">true</bool>
 
@@ -134,5 +130,11 @@
          on screen size and total memory for the largest lowmemorykiller bucket, and scaled
          proportionally to the smaller buckets. -1 keeps the default. -->
     <integer name="config_lowMemoryKillerMinFreeKbytesAbsolute">122880</integer>
+
+    <!-- Whether device supports double tap to wake -->
+    <bool name="config_supportDoubleTapWake">true</bool>
+
+    <!-- enable doze powersaving mode -->
+    <bool name="config_enableAutoPowerModes">true</bool>
 
 </resources>

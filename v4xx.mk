@@ -51,9 +51,6 @@ PRODUCT_COPY_FILES += \
 -include $(LOCAL_PATH)/system_prop.mk
 PRODUCT_CHARACTERISTICS := tablet
 
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-    persist.sys.usb.config=mtp
-
 # Screen density
 PRODUCT_AAPT_CONFIG := normal
 PRODUCT_AAPT_PREF_CONFIG := xhdpi
@@ -63,6 +60,10 @@ TARGET_SCREEN_HEIGHT := 1280
 TARGET_SCREEN_WIDTH := 800
 
 $(call inherit-product, frameworks/native/build/tablet-7in-hdpi-1024-dalvik-heap.mk)
+
+# Art
+PRODUCT_PROPERTY_OVERRIDES += \
+    dalvik.vm.dex2oat-swap=false
 
 # Audio
 PRODUCT_COPY_FILES += \
@@ -91,8 +92,13 @@ PRODUCT_PACKAGES += \
     init.zetaw.bt_vendor.rc \
     bdAddrLoader
 
+# BoringSSL compatability wrapper
+PRODUCT_PACKAGES += \
+    libboringssl-compat
+
 # Camera
 PRODUCT_PACKAGES += \
+    Snap \
     camera.msm8226
 
 # Display
@@ -102,10 +108,6 @@ PRODUCT_PACKAGES += \
     hwcomposer.msm8226 \
     memtrack.msm8226 \
     liboverlay
-
-# Filesystem
-PRODUCT_PACKAGES += \
-    e2fsck
 
 # GPS
 PRODUCT_PACKAGES += \
@@ -167,25 +169,25 @@ PRODUCT_PACKAGES += \
 # OMX
 PRODUCT_PACKAGES += \
     libc2dcolorconvert \
-    libdashplayer \
     libdivxdrmdecrypt \
+    libextmedia_jni \
     libOmxAacEnc \
     libOmxAmrEnc \
     libOmxCore \
     libOmxEvrcEnc \
     libOmxQcelp13Enc \
     libOmxVdec \
-    libOmxVdecHevc \
     libOmxVenc \
-    libstagefrighthw \
-    qcmediaplayer
-
-PRODUCT_BOOT_JARS += \
-    qcmediaplayer
+    libOmxVidcCommon \
+    libstagefrighthw
 
 # Power
 PRODUCT_PACKAGES += \
     power.msm8226
+
+# Qualcomm
+PRODUCT_PACKAGES += \
+    libcnefeatureconfig
 
 # Ramdisk
 PRODUCT_PACKAGES += \
@@ -202,13 +204,13 @@ PRODUCT_PACKAGES += \
     init.zetaw.usb.sh \
     ueventd.e7.rc
 
+# RIL symbols
+PRODUCT_PACKAGES += \
+    liblge
+
 # Thermal
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/configs/thermal-engine-8226.conf:system/etc/thermal-engine-8226.conf
-
-# USB
-PRODUCT_PACKAGES += \
-    com.android.future.usb.accessory
 
 # Wifi
 PRODUCT_PACKAGES += \

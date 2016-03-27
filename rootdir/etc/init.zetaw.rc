@@ -32,38 +32,17 @@ on early-init
 	mount debugfs debugfs /sys/kernel/debug
 
 on init
+    export LD_SHIM_LIBS /system/vendor/lib/libqomx_jpegenc.so|libboringssl-compat.so:/system/vendor/lib/libOpenCL.so|libboringssl-compat.so:/system/lib/libril.so|liblge.so
+
     # Set permissions for persist partition
     mkdir /persist 0771 system system
     mkdir /persist-lg 0771 system system
     mkdir /persist-lg/lgdata 0771 radio radio
     mkdir /sns 0775 system system
 
-    # See storage config details at http://source.android.com/tech/storage/
-    mkdir /mnt/shell/emulated 0700 shell shell
-    mkdir /storage/emulated 0555 root root
-
-    chmod 0701 /mnt/media_rw
-    mkdir /mnt/media_rw/sdcard1 0700 media_rw media_rw
-    mkdir /mnt/media_rw/usbdisk0 0700 media_rw media_rw
-
-    mkdir /storage/sdcard1 0700 root root
-    mkdir /storage/usbdisk0 0700 root root
-
-    export EXTERNAL_STORAGE /storage/emulated/legacy
-    export EMULATED_STORAGE_SOURCE /mnt/shell/emulated
-    export EMULATED_STORAGE_TARGET /storage/emulated
-    export SECONDARY_STORAGE /storage/sdcard1:/storage/usbdisk0
-
     # Support legacy paths
-    symlink /storage/emulated/legacy /sdcard
-    symlink /storage/emulated/legacy /mnt/sdcard
-    symlink /storage/emulated/legacy /storage/sdcard0
-    symlink /mnt/shell/emulated/0 /storage/emulated/legacy
-    symlink /storage/sdcard1 /external_sd
-    symlink /storage/sdcard1 /mnt/external_sd
-
-on post-fs
-   export LD_PRELOAD /vendor/lib/libNimsWrap.so
+    symlink /sdcard /mnt/sdcard
+    symlink /sdcard /storage/sdcard0
 
 on chargerlogo
    stop bootlogo
@@ -198,12 +177,10 @@ on boot
     chown media media /dev/msm_IRRC_pcm_dec
     chmod 0660 /dev/msm_IRRC_pcm_dec
 
+    trigger enable-low-power
+
 # msm specific files that need to be created on /data
 on post-fs-data
-    # we will remap this as /mnt/sdcard with the sdcard fuse tool
-    mkdir /data/media 0770 media_rw media_rw
-    chown media_rw media_rw /data/media
-
     mkdir /data/footprint 0750 root log
     chown root system /data/footprint
     chmod 0775 /data/footprint
@@ -419,17 +396,6 @@ service ril-qmi /system/bin/sh /init.zetaw.ril.sh
     class main
     user root
     oneshot
-
-service sdcard /system/bin/sdcard -u 1023 -g 1023 -l /data/media /mnt/shell/emulated
-    class late_start
-
-service fuse_sdcard1 /system/bin/sdcard -u 1023 -g 1023 -w 1023 /mnt/media_rw/sdcard1 /storage/sdcard1
-    class late_start
-    disabled
-
-service fuse_usbdisk0 /system/bin/sdcard -u 1023 -g 1023 -w 1023 /mnt/media_rw/usbdisk0 /storage/usbdisk0
-    class late_start
-    disabled
 
 on property:vold.decrypt=trigger_restart_framework
     start sensors
@@ -728,14 +694,34 @@ service wifi-crda /system/bin/sh /system/etc/init.crda.sh
    oneshot
 
 
-on property:init.svc.bootanim=stopped
+on enable-low-power
     start zetaw-post-boot
+    write /sys/devices/system/cpu/cpu1/online 1
+    write /sys/devices/system/cpu/cpu2/online 1
+    write /sys/devices/system/cpu/cpu3/online 1
 
-on property:init.svc.bootanim=running
-    setprop sys.perf.profile 2
+    write /sys/class/devfreq/qcom,cpubw.64/governor "msm_cpufreq"
+    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor "interactive"
+    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor "interactive"
+    write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor "interactive"
+    write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor "interactive"
 
-on property:init.svc.bootanim=stopped
-    setprop sys.perf.profile 1
+    write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay "20000 1400000:40000 1700000:20000"
+    write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 90
+    write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 1190400
+    write /sys/devices/system/cpu/cpufreq/interactive/io_is_busy 0
+    write /sys/devices/system/cpu/cpufreq/interactive/target_loads "85 1500000:90 1800000:70"
+    write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 40000
+    write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 30000
+    write /sys/devices/system/cpu/cpufreq/interactive/sampling_down_factor 100000
+    write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 30000
+    write /sys/devices/system/cpu/cpufreq/interactive/up_threshold_any_cpu_load 50
+    write /sys/devices/system/cpu/cpufreq/interactive/sync_freq 1036800
+    write /sys/devices/system/cpu/cpufreq/interactive/up_threshold_any_cpu_freq 998400
+
+    write /sys/class/kgsl/kgsl-3d0/devfreq/governor msm-adreno-tz
+
+    setprop sys.io.scheduler bfq
 
 service ds_fmc_appd /system/bin/ds_fmc_appd -p "rmnet0" -D
     class late_start
@@ -768,12 +754,6 @@ service profiler_daemon /system/bin/profiler_daemon
     user root
     group root
     disabled
-
-# Binding fuse mount point to /storage/emulated/legacy
-# Palman nok so extermination!!!
-on property:init.svc.sdcard=running
-    wait /mnt/shell/emulated/0
-    mount none /mnt/shell/emulated/0 /storage/emulated/legacy bind
 
 service hcidump /system/bin/sh /system/etc/hcidump.sh
     user bluetooth
@@ -1051,7 +1031,6 @@ on property:persist.service.dsqn=1
 on property:persist.service.dsqn=0
     stop dsqn
 
-# Performance
 on property:service.bootanim.exit=1
     write /sys/module/lpm_levels/enable_low_power/l2 "4"
     write /sys/module/msm_pm/modes/cpu0/power_collapse/suspend_enabled "1"
@@ -1091,59 +1070,3 @@ on property:service.bootanim.exit=1
     write /sys/module/cpu_boost/parameters/sync_threshold "998400"
     write /sys/module/cpu_boost/parameters/input_boost_freq "1190400"
     write /sys/module/cpu_boost/parameters/input_boost_ms "40"
-
-# CM Performance Profiles
-on property:sys.perf.profile=0
-    stop mpdecision
-    write /sys/devices/system/cpu/cpu1/online 1
-    write /sys/devices/system/cpu/cpu2/online 1
-    write /sys/devices/system/cpu/cpu3/online 1
-    write /sys/class/devfreq/qcom,cpubw.64/governor "powersave"
-    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor conservative
-    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor conservative
-    write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor conservative
-    write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor conservative
-    write /sys/class/kgsl/kgsl-3d0/devfreq/governor msm-adreno-tz
-    start mpdecision
-
-on property:sys.perf.profile=1
-    stop mpdecision
-    write /sys/devices/system/cpu/cpu1/online 1
-    write /sys/devices/system/cpu/cpu2/online 1
-    write /sys/devices/system/cpu/cpu3/online 1
-
-    write /sys/class/devfreq/qcom,cpubw.64/governor "msm_cpufreq"
-    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor "interactive"
-    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor "interactive"
-    write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor "interactive"
-    write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor "interactive"
-
-    write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay "20000 1400000:40000 1700000:20000"
-    write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 90
-    write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 1190400
-    write /sys/devices/system/cpu/cpufreq/interactive/io_is_busy 0
-    write /sys/devices/system/cpu/cpufreq/interactive/target_loads "85 1500000:90 1800000:70"
-    write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 40000
-    write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 30000
-    write /sys/devices/system/cpu/cpufreq/interactive/sampling_down_factor 100000
-    write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 30000
-    write /sys/devices/system/cpu/cpufreq/interactive/up_threshold_any_cpu_load 50
-    write /sys/devices/system/cpu/cpufreq/interactive/sync_freq 1036800
-    write /sys/devices/system/cpu/cpufreq/interactive/up_threshold_any_cpu_freq 998400
-
-    write /sys/class/kgsl/kgsl-3d0/devfreq/governor msm-adreno-tz
-    start mpdecision
-
-    setprop sys.io.scheduler bfq
-
-on property:sys.perf.profile=2
-    stop mpdecision
-    write /sys/devices/system/cpu/cpu1/online 1
-    write /sys/devices/system/cpu/cpu2/online 1
-    write /sys/devices/system/cpu/cpu3/online 1
-    write /sys/class/devfreq/qcom,cpubw.64/governor "performance"
-    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor performance
-    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor performance
-    write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor performance
-    write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor performance
-    write /sys/class/kgsl/kgsl-3d0/devfreq/governor performance
